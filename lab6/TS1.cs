@@ -1,0 +1,124 @@
+﻿using Newtonsoft.Json.Linq;
+
+namespace lab6_cs
+{
+
+    struct Weather
+    {
+        public string Country { get; set; }
+        public string Name { get; set; }
+        public double Temp { get; set; }
+        public string Description { get; set; }
+
+        public void Print()
+        {
+            Console.WriteLine($"Country: {Country}");
+            Console.WriteLine($"Name: {Name}");
+            Console.WriteLine($"Temp: {Temp}");
+            Console.WriteLine($"Description: {Description}");
+        }
+    }
+    internal class Program
+    {
+        private static readonly string API_KEY = "ddebe371b6d7be42d8137978f3ffe9b1";
+
+        static void Main(string[] args)
+        {
+            List<Weather> list = FetchWeatherList(50);
+
+            foreach (var weather in list)
+            {
+                weather.Print();
+            }
+
+            PrintInfo(list);
+        }
+
+        private static List<Weather> FetchWeatherList(int num)
+        {
+            List<Weather> weatherList = new List<Weather>();
+            Random random = new Random();
+
+            for (int i = 0; i < num; ++i)
+            {
+                double latitude = random.NextDouble() * 180 - 90;
+                double longitude = random.NextDouble() * 360 - 180;
+                string apiUrl = $"https://api.openweathermap.org/data/2.5/weather?lat={latitude}&lon={longitude}&appid={API_KEY}";
+
+                string jsonData = FetchData(apiUrl);
+
+                JObject json = JObject.Parse(jsonData);
+
+                if (json["sys"] != null && json["sys"]["country"] != null)
+                {
+                    string country = json["sys"]["country"].ToString();
+                    string name = json["name"].ToString();
+                    double temp = Convert.ToDouble(json["main"]["temp"]);
+                    string description = json["weather"][0]["description"].ToString();
+
+                    weatherList.Add(new Weather
+                    {
+                        Country = country,
+                        Name = name,
+                        Temp = temp,
+                        Description = description
+                    });
+                }
+                else
+                {
+                    Console.WriteLine("We can not find country lat={0}, long={1}", latitude, longitude);
+                }
+            }
+
+            return weatherList;
+        }
+
+        private static string FetchData(string apiUrl)
+        {
+            using (HttpClient client = new HttpClient())
+            {
+                HttpResponseMessage response = client.GetAsync(apiUrl).Result;
+                if (response.IsSuccessStatusCode)
+                {
+                    return response.Content.ReadAsStringAsync().Result;
+                }
+                else
+                {
+                    throw new Exception($"HTTP error: {response.StatusCode}");
+                }
+            }
+        }
+
+        private static void PrintInfo(List<Weather> list)
+        {
+            var Country1 = list.Where(x => x.Temp < 260).FirstOrDefault();
+            if (!String.IsNullOrEmpty(Country1.Country))
+            {
+                Console.WriteLine($"Country  холод собачий: {Country1.Country}");
+            }
+
+            var maxTempCountry = list.OrderByDescending(x => x.Temp).FirstOrDefault();
+            Console.WriteLine($"Country with max temp: {maxTempCountry.Country}");
+
+
+            var minTempCountry = list.OrderBy(x => x.Temp).FirstOrDefault();
+            Console.WriteLine($"Country with min temp: {minTempCountry.Country}");
+
+
+            var averageTemp = list.Average(w => w.Temp);
+            Console.WriteLine($"Average temp: {averageTemp:F2} K");
+
+
+            var countryCount = list.Select(w => w.Country).Distinct().Count();
+            Console.WriteLine($"Count of countries: {countryCount}");
+
+
+            var locationWithDescription = list
+                .Where(w => w.Description == "clear sky" || w.Description == "rain" || w.Description == "few clouds")
+                .Select(w => new { w.Country, w.Name })
+                .FirstOrDefault();
+            Console.WriteLine($"First country and location with the description 'clear sky', 'rain', or 'few clouds': {locationWithDescription?.Country}, {locationWithDescription?.Name}");
+
+        }
+    }
+}
